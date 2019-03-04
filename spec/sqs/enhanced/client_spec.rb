@@ -65,5 +65,32 @@ RSpec.describe SQS::Enhanced::Client, aggregate_failures: true do
       expect(sent_queue_url).to eq(queue_url)
       expect(entries.size).to eq(2)
     end
+
+    context "multi thread" do
+      it "can send all messages" do
+        entries = []
+        sqs.stub_responses(:send_message_batch, -> (ctx) {
+          entries.concat(ctx.params[:entries])
+          sqs.stub_data(:send_message_batch)
+        })
+        pool = Concurrent::FixedThreadPool.new(32)
+        100.times do
+          pool.post do
+            15.times do
+              client.send_message_buffered(queue_url: queue_url, message_body: "body")
+            end
+          end
+        end
+        pool.shutdown && pool.wait_for_termination
+        client.flush
+
+        buffer = client.instance_variable_get(:@send_message_buffer)
+        current_buffer_size = client.instance_variable_get(:@current_buffer_size)
+
+        expect(buffer[queue_url]).to be_empty
+        expect(current_buffer_size[queue_url].value).to eq(0)
+        expect(entries.length).to eq(100 * 15)
+      end
+    end
   end
 end
