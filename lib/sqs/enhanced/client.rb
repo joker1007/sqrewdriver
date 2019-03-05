@@ -9,7 +9,7 @@ module SQS
       MAX_BATCH_SIZE = 10
       MAX_PAYLOAD_SIZE = 256 * 1024
 
-      def initialize(client: nil, threads: 32, flush_retry_count: 5, **options)
+      def initialize(client: nil, threads: 32, serializer: SQS::Enhanced.default_serializer, flush_retry_count: 5, **options)
         if client
           @client = client
         else
@@ -23,6 +23,7 @@ module SQS
         @errors = Concurrent::Array.new
         @waiting_futures = Concurrent::Set.new
         @flush_mutex = Mutex.new
+        @serializer = serializer
       end
 
       # Add a message to buffer.
@@ -50,9 +51,10 @@ module SQS
             sending_message_size = 0
             @flush_mutex.synchronize do
               until buffer.empty? do
-                size = calculate_message_size(buffer[0])
+                serialized = @serializer.dump(buffer[0][:message_body])
+                size = calculate_message_size(serialized, buffer[0][:message_attributes])
                 break if sending_message_size + size > MAX_PAYLOAD_SIZE
-                sending << buffer.shift
+                sending << buffer.shift.tap { |params| params[:message_body] = serialized }
                 sending_message_size += size
               end
               @current_buffer_size[url].decrement(sending_message_size)
@@ -101,17 +103,15 @@ module SQS
 
       def add_message_to_buffer(queue_url, params)
         @send_message_buffer[queue_url] << params
-        @current_buffer_size[queue_url].increment(calculate_message_size(params))
       end
 
       def need_flush?(queue_url)
-        (@send_message_buffer[queue_url].length >= 10) ||
-          (@current_buffer_size[queue_url].value >= MAX_PAYLOAD_SIZE)
+        @send_message_buffer[queue_url].length >= 10
       end
 
-      def calculate_message_size(params)
-        sum = params[:message_body].bytesize
-        params[:message_attributes]&.each do |n, a|
+      def calculate_message_size(body, attributes)
+        sum = body.bytesize
+        attributes&.each do |n, a|
           sum += n.bytesize
           sum += a[:data_type].bytesize
           sum += a[:string_value].bytesyze
