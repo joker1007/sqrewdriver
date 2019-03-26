@@ -1,15 +1,16 @@
 module SQS
   module Enhanced
     module Serdes
-      module RawSerde
-        class << self
-          def dump(val)
-            val
-          end
+      class RawSerde
+        def initialize(serialize_options: {}, deserialize_options: {})
+        end
 
-          def load(val)
-            val
-          end
+        def dump(val)
+          val
+        end
+
+        def load(val)
+          val
         end
       end
     end

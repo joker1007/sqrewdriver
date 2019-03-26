@@ -1,4 +1,5 @@
 require "sqs/enhanced/version"
+require "sqs/enhanced/serdes/json_serde"
 
 module SQS
   module Enhanced
@@ -14,12 +15,7 @@ module SQS
       end
     end
 
-    begin
-      require "oj"
-      self.default_serializer = Oj
-    rescue LoadError
-      self.default_serializer = Serdes::RawSerde
-    end
+    self.default_serializer = Serdes::JSONSerde.new
   end
 end
 
