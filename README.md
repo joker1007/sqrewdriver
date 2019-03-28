@@ -44,6 +44,9 @@ payload_data.each do |d|
 end
 
 client.flush # Don't forget to call flush finally
+
+# If any exception occurs when client is flushing messages,
+# client raises `Sqrewdriver::SendMessageErrors`
 ```
 
 ### Change serializer

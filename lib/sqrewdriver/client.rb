@@ -20,7 +20,6 @@ module Sqrewdriver
       @message_buffer = Concurrent::Array.new
       @thread_pool = Concurrent::FixedThreadPool.new(threads)
       @flush_retry_count = flush_retry_count
-      @errors = Concurrent::Array.new
       @waiting_futures = Concurrent::Set.new
       @flush_mutex = Mutex.new
       @aggregate_messages_per = aggregate_messages_per
@@ -195,7 +194,6 @@ module Sqrewdriver
       @waiting_futures << future
       future.on_resolution_using(@thread_pool) do |fulfilled, value, reason|
         @waiting_futures.delete(future)
-        @errors << reason if reason
       end
     end
 
