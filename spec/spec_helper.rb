@@ -1,5 +1,5 @@
 require "bundler/setup"
-require "sqs/enhanced"
+require "sqrewdriver"
 
 RSpec.configure do |config|
   # Enable flags like --only-failures and --next-failure

@@ -1,15 +1,20 @@
-# sqs-enhanced
+# sqrewdriver
 
-Welcome to your new gem! In this directory, you'll find the files you need to be able to package up your Ruby library into a gem. Put your Ruby code in the file `lib/sqs/enhanced`. To experiment with that code, run `bin/console` for an interactive prompt.
+This gem extend Amazon SQS client. (parallelize and aggregation).
 
-TODO: Delete this and the text above, and describe your gem
+## Features
+
+- Message buffering and Use SendMessageBatch implicitly
+- Sending message on thread pool by [concurrent-ruby](https://github.com/ruby-concurrency/concurrent-ruby)
+- Message Aggregation into serialized array
+- Serialize message implicitly (default: JSON format)
 
 ## Installation
 
 Add this line to your application's Gemfile:
 
 ```ruby
-gem 'sqs-enhanced'
+gem 'sqrewdriver'
 ```
 
 And then execute:
@@ -18,11 +23,38 @@ And then execute:
 
 Or install it yourself as:
 
-    $ gem install sqs-enhanced
+    $ gem install sqrewdriver
 
 ## Usage
 
-TODO: Write usage instructions here
+```ruby
+client = Sqrewdriver::Client.new(queue_url: "https://sqs.ap-northeast-1.amazonaws.com/dummy/dummy")
+
+# or
+
+sqs = Aws::SQS::Client.new(log_level: :debug)
+client = Sqrewdriver::Client.new(queue_url: "https://sqs.ap-northeast-1.amazonaws.com/dummy/dummy", client: sqs)
+
+# If use message aggregation
+
+client = Sqrewdriver::Client.new(queue_url: "https://sqs.ap-northeast-1.amazonaws.com/dummy/dummy", aggregate_messages_per: 100) # one SQS message is a serialized array having 100 items.
+
+payload_data.each do |d|
+  client.send_message_buffered(message_body: d)
+end
+
+client.flush # Don't forget to call flush finally
+```
+
+### Change serializer
+
+Serializer needs `dump(value)` method.
+
+```ruby
+client = Sqrewdriver::Client.new(queue_url: "https://sqs.ap-northeast-1.amazonaws.com/dummy/dummy", serializer: YAML)
+```
+
+If you want to pass options to serializer, Please implement wrapping class.
 
 ## Development
 
@@ -32,7 +64,7 @@ To install this gem onto your local machine, run `bundle exec rake install`. To 
 
 ## Contributing
 
-Bug reports and pull requests are welcome on GitHub at https://github.com/joker1007/sqs-enhanced.
+Bug reports and pull requests are welcome on GitHub at https://github.com/joker1007/sqrewdriver.
 
 ## License
 

@@ -1,7 +1,7 @@
-RSpec.describe SQS::Enhanced::Client, aggregate_failures: true do
+RSpec.describe Sqrewdriver::Client, aggregate_failures: true do
   let(:sqs) { Aws::SQS::Client.new(stub_responses: true) }
   let(:queue_url) { "http://dummy.example.com" }
-  let(:client) { SQS::Enhanced::Client.new(queue_url: queue_url, client: sqs) }
+  let(:client) { Sqrewdriver::Client.new(queue_url: queue_url, client: sqs) }
 
   describe "#send_message_buffered" do
     it "add message to buffer" do
@@ -68,7 +68,7 @@ RSpec.describe SQS::Enhanced::Client, aggregate_failures: true do
     end
 
     context "aggregate_messages_per is set" do
-      let(:client) { SQS::Enhanced::Client.new(queue_url: queue_url, client: sqs, aggregate_messages_per: 10) }
+      let(:client) { Sqrewdriver::Client.new(queue_url: queue_url, client: sqs, aggregate_messages_per: 10) }
 
       it "send message to SQS when need_flush (by aggregate_messages_per)" do
         sent_queue_url = nil

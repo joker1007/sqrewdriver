@@ -1,6 +1,6 @@
 source "https://rubygems.org"
 
-# Specify your gem's dependencies in sqs-enhanced.gemspec
+# Specify your gem's dependencies in sqrewdriver.gemspec
 gemspec
 
 gem "oj"

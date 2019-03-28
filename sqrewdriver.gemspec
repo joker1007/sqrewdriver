@@ -1,11 +1,10 @@
-
 lib = File.expand_path("../lib", __FILE__)
 $LOAD_PATH.unshift(lib) unless $LOAD_PATH.include?(lib)
-require "sqs/enhanced/version"
+require "sqrewdriver/version"
 
 Gem::Specification.new do |spec|
-  spec.name          = "sqs-enhanced"
-  spec.version       = SQS::Enhanced::VERSION
+  spec.name          = "sqrewdriver"
+  spec.version       = Sqrewdriver::VERSION
   spec.authors       = ["joker1007"]
   spec.email         = ["kakyoin.hierophant@gmail.com"]
 
