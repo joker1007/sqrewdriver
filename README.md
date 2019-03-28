@@ -33,11 +33,17 @@ client = Sqrewdriver::Client.new(queue_url: "https://sqs.ap-northeast-1.amazonaw
 # or
 
 sqs = Aws::SQS::Client.new(log_level: :debug)
-client = Sqrewdriver::Client.new(queue_url: "https://sqs.ap-northeast-1.amazonaws.com/dummy/dummy", client: sqs)
+client = Sqrewdriver::Client.new(
+  queue_url: "https://sqs.ap-northeast-1.amazonaws.com/dummy/dummy",
+  client: sqs
+)
 
 # If use message aggregation
 
-client = Sqrewdriver::Client.new(queue_url: "https://sqs.ap-northeast-1.amazonaws.com/dummy/dummy", aggregate_messages_per: 100) # one SQS message is a serialized array having 100 items.
+client = Sqrewdriver::Client.new(
+  queue_url: "https://sqs.ap-northeast-1.amazonaws.com/dummy/dummy",
+  aggregate_messages_per: 100
+) # one SQS message is a serialized array having 100 items.
 
 payload_data.each do |d|
   client.send_message_buffered(message_body: d)
@@ -54,7 +60,10 @@ client.flush # Don't forget to call flush finally
 Serializer needs `dump(value)` method.
 
 ```ruby
-client = Sqrewdriver::Client.new(queue_url: "https://sqs.ap-northeast-1.amazonaws.com/dummy/dummy", serializer: YAML)
+client = Sqrewdriver::Client.new(
+  queue_url: "https://sqs.ap-northeast-1.amazonaws.com/dummy/dummy",
+  serializer: YAML
+)
 ```
 
 If you want to pass options to serializer, Please implement wrapping class.
