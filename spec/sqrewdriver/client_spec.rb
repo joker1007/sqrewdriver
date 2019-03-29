@@ -57,6 +57,13 @@ RSpec.describe Sqrewdriver::Client, aggregate_failures: true do
             end
           end
         end
+
+        5.times do
+          pool.post do
+            client.flush_async
+          end
+        end
+
         pool.shutdown && pool.wait_for_termination
         client.flush
 
@@ -71,10 +78,8 @@ RSpec.describe Sqrewdriver::Client, aggregate_failures: true do
       let(:client) { Sqrewdriver::Client.new(queue_url: queue_url, client: sqs, aggregate_messages_per: 10) }
 
       it "send message to SQS when need_flush (by aggregate_messages_per)" do
-        sent_queue_url = nil
         entries = nil
         sqs.stub_responses(:send_message_batch, -> (ctx) {
-          sent_queue_url = ctx.params[:queue_url]
           entries = ctx.params[:entries]
           sqs.stub_data(:send_message_batch)
         })
@@ -119,6 +124,12 @@ RSpec.describe Sqrewdriver::Client, aggregate_failures: true do
                 client.send_message_buffered(queue_url: queue_url, message_body: "body")
               end
             end
+
+            5.times do
+              pool.post do
+                client.flush_async
+              end
+            end
           end
           pool.shutdown && pool.wait_for_termination
           client.flush
@@ -126,7 +137,7 @@ RSpec.describe Sqrewdriver::Client, aggregate_failures: true do
           buffer = client.instance_variable_get(:@message_buffer)
 
           expect(buffer).to be_empty
-          expect(entries.length).to eq(10 * 15)
+          expect(entries.flat_map { |m| Oj.load(m[:message_body]) }.size).to eq(100 * 15)
         end
       end
     end
