@@ -66,7 +66,6 @@ module Sqrewdriver
         @client = client
         @queue_url = queue_url
         @chunks = Concurrent::Array.new
-        @chunks << Chunk.new
         @serializer = serializer
         @thread_pool = thread_pool
       end
@@ -77,6 +76,7 @@ module Sqrewdriver
         add_size = calculate_message_size(serialized, message[:attributes])
 
         synchronize do
+          @chunks << Chunk.new if @chunks.empty?
           if @chunks.last.bytesize + add_size > MAX_PAYLOAD_SIZE
             new_chunk = Chunk.new
             new_chunk.add(message, add_size)
@@ -96,6 +96,7 @@ module Sqrewdriver
         add_size = calculate_message_size(serialized, base_message[:message_attributes])
 
         synchronize do
+          @chunks << Chunk.new if @chunks.empty?
           if @chunks.last.bytesize + add_size > MAX_PAYLOAD_SIZE
             new_chunk = Chunk.new
             new_chunk.add(base_message, add_size)
