@@ -8,6 +8,7 @@ This gem extend Amazon SQS client. (parallelize and aggregation).
 - Sending message on thread pool by [concurrent-ruby](https://github.com/ruby-concurrency/concurrent-ruby)
 - Message Aggregation into serialized array
 - Serialize message implicitly (default: JSON format)
+- Currently, Support only `send_message_buffered`
 
 ## Installation
 
