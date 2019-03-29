@@ -2,7 +2,6 @@ PATH
   remote: .
   specs:
     sqrewdriver (0.1.0)
-      aws-sdk-dynamodb
       aws-sdk-sqs
       concurrent-ruby
 
@@ -16,9 +15,6 @@ GEM
       aws-partitions (~> 1.0)
       aws-sigv4 (~> 1.0)
       jmespath (~> 1.0)
-    aws-sdk-dynamodb (1.21.0)
-      aws-sdk-core (~> 3, >= 3.39.0)
-      aws-sigv4 (~> 1.0)
     aws-sdk-sqs (1.10.0)
       aws-sdk-core (~> 3, >= 3.39.0)
       aws-sigv4 (~> 1.0)
