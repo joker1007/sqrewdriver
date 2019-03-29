@@ -23,7 +23,6 @@ Gem::Specification.new do |spec|
   spec.require_paths = ["lib"]
 
   spec.add_runtime_dependency "aws-sdk-sqs"
-  spec.add_runtime_dependency "aws-sdk-dynamodb"
   spec.add_runtime_dependency "concurrent-ruby"
 
   spec.add_development_dependency "bundler", "~> 2.0"
