@@ -171,7 +171,11 @@ module Sqrewdriver
 
     def wait_flushing(timeout = nil)
       zipped = Concurrent::Promises.zip_futures_on(@thread_pool, *@waiting_futures)
-      exceptions = zipped.reason(timeout)
+      unless zipped.wait(timeout)
+        raise Sqrewdriver::SendMessageTimeout
+      end
+
+      exceptions = zipped.reason
       raise Sqrewdriver::SendMessageErrors.new(exceptions) if exceptions
     end
 
