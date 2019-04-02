@@ -55,6 +55,10 @@ module Sqrewdriver
           @data << message
           @bytesize += size
         end
+
+        def size
+          @data.size
+        end
       end
 
       include MonitorMixin
@@ -77,7 +81,7 @@ module Sqrewdriver
 
         synchronize do
           @chunks << Chunk.new if @chunks.empty?
-          if @chunks.last.bytesize + add_size > MAX_PAYLOAD_SIZE
+          if @chunks.last.size == MAX_BATCH_SIZE || @chunks.last.bytesize + add_size > MAX_PAYLOAD_SIZE
             new_chunk = Chunk.new
             new_chunk.add(message, add_size)
             @chunks << new_chunk
