@@ -179,9 +179,9 @@ module Sqrewdriver
       raise Sqrewdriver::SendMessageErrors.new(exceptions) if exceptions
     end
 
-    def flush
+    def flush(timeout = nil)
       flush_async
-      wait_flushing
+      wait_flushing(timeout)
     end
 
     private
