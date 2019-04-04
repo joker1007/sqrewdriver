@@ -209,7 +209,7 @@ module Sqrewdriver
     def ensure_serializer_for_aggregation!(serializer)
       valid_serializer = @aggregate_messages_per.nil? || serializer.is_a?(Sqrewdriver::Serdes::JSONSerde)
       unless valid_serializer
-        raise InvalidSerializer, "If you use `aggregate_messages_per`, serializer must be `Oj` or `MultiJson`"
+        raise InvalidSerializer, "If you use `aggregate_messages_per`, serializer must be `Sqrewdriver::Serdes::JSONSerde`"
       end
     end
   end
