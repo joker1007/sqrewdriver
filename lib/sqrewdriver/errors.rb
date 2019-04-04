@@ -18,4 +18,6 @@ module Sqrewdriver
       @failed = failed
     end
   end
+
+  class SendMessageTimeout < StandardError; end
 end
