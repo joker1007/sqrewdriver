@@ -101,7 +101,7 @@ module Sqrewdriver
 
         synchronize do
           @chunks << Chunk.new if @chunks.empty?
-          if @chunks.last.bytesize + add_size > MAX_PAYLOAD_SIZE
+          if @chunks.last.size == MAX_BATCH_SIZE || @chunks.last.bytesize + add_size > MAX_PAYLOAD_SIZE
             new_chunk = Chunk.new
             new_chunk.add(base_message, add_size)
             @chunks << new_chunk
