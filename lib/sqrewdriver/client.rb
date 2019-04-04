@@ -34,8 +34,8 @@ module Sqrewdriver
     # If count of buffered messages exceed 10 or aggregate_messages_per
     # else if sum of message size exceeds 256KB,
     # send payload to SQS asynchronously.
-    def send_message_buffered(queue_url: nil, **params)
-      add_message_to_buffer(params)
+    def send_message_buffered(message)
+      add_message_to_buffer(message)
 
       if need_flush?
         flush_async
@@ -190,8 +190,8 @@ module Sqrewdriver
 
     private
 
-    def add_message_to_buffer(params)
-      @message_buffer << params
+    def add_message_to_buffer(message)
+      @message_buffer << message
     end
 
     def need_flush?
@@ -199,7 +199,7 @@ module Sqrewdriver
     end
 
     def send_first_chunk_async
-      future = @sending_buffer.send_first_chunk_async 
+      future = @sending_buffer.send_first_chunk_async
       @waiting_futures << future
       future.on_resolution_using(@thread_pool) do |fulfilled, value, reason|
         @waiting_futures.delete(future)

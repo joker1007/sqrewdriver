@@ -5,7 +5,7 @@ RSpec.describe Sqrewdriver::Client, aggregate_failures: true do
 
   describe "#send_message_buffered" do
     it "add message to buffer" do
-      client.send_message_buffered(queue_url: queue_url, message_body: {foo: "body"})
+      client.send_message_buffered(message_body: {foo: "body"})
       buffer = client.instance_variable_get(:@message_buffer)
 
       expect(buffer[0]).to eq({message_body: {foo: "body"}})
@@ -20,7 +20,7 @@ RSpec.describe Sqrewdriver::Client, aggregate_failures: true do
         sqs.stub_data(:send_message_batch)
       })
       12.times do
-        client.send_message_buffered(queue_url: queue_url, message_body: {foo: "body"})
+        client.send_message_buffered(message_body: {foo: "body"})
       end
       Concurrent::Promises.zip_futures(*client.instance_variable_get(:@waiting_futures)).wait!
       buffer = client.instance_variable_get(:@message_buffer)
@@ -60,7 +60,7 @@ RSpec.describe Sqrewdriver::Client, aggregate_failures: true do
         100.times do
           pool.post do
             15.times do
-              client.send_message_buffered(queue_url: queue_url, message_body: "body")
+              client.send_message_buffered(message_body: "body")
             end
           end
         end
@@ -91,13 +91,13 @@ RSpec.describe Sqrewdriver::Client, aggregate_failures: true do
           sqs.stub_data(:send_message_batch)
         })
         99.times do
-          client.send_message_buffered(queue_url: queue_url, message_body: {foo: "body"})
+          client.send_message_buffered(message_body: {foo: "body"})
         end
         Concurrent::Promises.zip_futures(*client.instance_variable_get(:@waiting_futures)).wait!
         buffer = client.instance_variable_get(:@message_buffer)
         expect(buffer.size).to eq(99)
 
-        client.send_message_buffered(queue_url: queue_url, message_body: {foo: "body"})
+        client.send_message_buffered(message_body: {foo: "body"})
         Concurrent::Promises.zip_futures(*client.instance_variable_get(:@waiting_futures)).wait!
         buffer = client.instance_variable_get(:@message_buffer)
         expect(buffer).to be_empty
@@ -128,7 +128,7 @@ RSpec.describe Sqrewdriver::Client, aggregate_failures: true do
           100.times do
             pool.post do
               15.times do
-                client.send_message_buffered(queue_url: queue_url, message_body: "body")
+                client.send_message_buffered(message_body: "body")
               end
             end
 
