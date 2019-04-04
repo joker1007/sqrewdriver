@@ -19,13 +19,13 @@ RSpec.describe Sqrewdriver::Client, aggregate_failures: true do
         entries = ctx.params[:entries]
         sqs.stub_data(:send_message_batch)
       })
-      10.times do
+      12.times do
         client.send_message_buffered(queue_url: queue_url, message_body: {foo: "body"})
       end
       Concurrent::Promises.zip_futures(*client.instance_variable_get(:@waiting_futures)).wait!
       buffer = client.instance_variable_get(:@message_buffer)
 
-      expect(buffer).to be_empty
+      expect(buffer.size).to eq(2)
       expect(sent_queue_url).to eq(queue_url)
       body = JSON.generate({foo: "body"})
       expect(entries).to eq([
@@ -39,6 +39,13 @@ RSpec.describe Sqrewdriver::Client, aggregate_failures: true do
         {message_body: body, id: "7"},
         {message_body: body, id: "8"},
         {message_body: body, id: "9"},
+      ])
+
+      client.flush
+      expect(buffer).to be_empty
+      expect(entries).to eq([
+        {message_body: body, id: "0"},
+        {message_body: body, id: "1"},
       ])
     end
 
