@@ -49,6 +49,20 @@ RSpec.describe Sqrewdriver::Client, aggregate_failures: true do
       ])
     end
 
+    it "can avoid rase condition on sending buffer (brute force test)" do
+      num = 0
+      expect {
+        begin
+          100000.times { |i| num = i
+            client.send_message_buffered(message_body: {foo: "body"})
+          }
+        rescue => e
+          puts "Failed with #{e} at ##{num}th iteration"
+          raise
+        end
+      }.not_to raise_error
+    end
+
     context "multi thread" do
       it "can send all messages" do
         entries = []
