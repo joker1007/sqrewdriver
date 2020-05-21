@@ -3,11 +3,15 @@ module Sqrewdriver
     attr :errors
 
     def initialize(errors)
-      @errors = errors
+      @errors = Array(errors).compact
     end
 
     def messages
       @errors.map(&:message)
+    end
+
+    def to_s
+      errors.map(&:inspect).join(", ")
     end
   end
 
