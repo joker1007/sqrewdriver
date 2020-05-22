@@ -117,7 +117,7 @@ module Sqrewdriver
 
       def send_first_chunk_async
         Concurrent::Promises.future_on(@thread_pool, @chunks) do |chunks|
-          sending = chunks.shift
+          sending = synchronize { chunks.shift }
           if sending
             sending.data.each_with_index do |params, idx|
               params[:id] = idx.to_s
