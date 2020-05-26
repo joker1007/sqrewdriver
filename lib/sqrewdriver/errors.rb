@@ -23,5 +23,13 @@ module Sqrewdriver
     end
   end
 
+  class SendMessageBatchRequestError < StandardError
+    attr_reader :cause
+
+    def initialize(cause)
+      @cause = cause
+    end
+  end
+
   class SendMessageTimeout < StandardError; end
 end

@@ -25,14 +25,14 @@ module Sqrewdriver
         @message_buffer = Queue.new
       end
       @thread_pool = Concurrent::FixedThreadPool.new(threads)
-      @flush_retry_count = flush_retry_count
       @waiting_futures = Concurrent::Set.new
+      @errors = Concurrent::Array.new
       @flush_mutex = Mutex.new
       @aggregate_messages_per = aggregate_messages_per
 
       ensure_serializer_for_aggregation!(serializer)
 
-      @sending_buffer = SendingBuffer.new(client: @client, queue_url: queue_url, serializer: serializer, thread_pool: @thread_pool)
+      @sending_buffer = SendingBuffer.new(client: @client, queue_url: queue_url, serializer: serializer, thread_pool: @thread_pool, flush_retry_count: flush_retry_count)
     end
 
     # Add a message to buffer.
@@ -52,9 +52,10 @@ module Sqrewdriver
       class Chunk
         attr_reader :data, :bytesize
 
-        def initialize
+        def initialize(flush_retry_count: 5)
           @data = []
           @bytesize = 0
+          @flush_retry_count = flush_retry_count
         end
 
         def add(message, size)
@@ -71,13 +72,14 @@ module Sqrewdriver
 
       attr_reader :chunks
 
-      def initialize(client:, queue_url:, serializer:, thread_pool:)
+      def initialize(client:, queue_url:, serializer:, thread_pool:, flush_retry_count:)
         super()
         @client = client
         @queue_url = queue_url
         @chunks = Concurrent::Array.new
         @serializer = serializer
         @thread_pool = thread_pool
+        @flush_retry_count = flush_retry_count
       end
 
       def add_message(message)
@@ -150,7 +152,13 @@ module Sqrewdriver
       end
 
       def send_message_batch_with_retry(entries:, retry_count: 0)
-        resp = @client.send_message_batch(queue_url: @queue_url, entries: entries)
+        begin
+          resp = @client.send_message_batch(queue_url: @queue_url, entries: entries)
+        rescue => e
+          raise SendMessageBatchRequestError.new(e) if retry_count >= @flush_retry_count
+
+          send_message_batch_with_retry(entries: entries, retry_count: retry_count + 1)
+        end
 
         unless resp.failed.empty?
           raise SendMessageBatchFailure.new(resp.failed) if retry_count >= @flush_retry_count
@@ -187,8 +195,12 @@ module Sqrewdriver
         raise Sqrewdriver::SendMessageTimeout
       end
 
-      exceptions = zipped.reason
-      raise Sqrewdriver::SendMessageErrors.new(exceptions) if exceptions
+      @errors.concat(zipped.reason) if zipped.reason
+      raise Sqrewdriver::SendMessageErrors.new(@errors) unless @errors.empty?
+    end
+
+    def clear_errors
+      @errors.clear
     end
 
     def flush(timeout = nil)
@@ -239,6 +251,9 @@ module Sqrewdriver
       future = @sending_buffer.send_first_chunk_async
       @waiting_futures << future
       future.on_resolution_using(@thread_pool) do |fulfilled, value, reason|
+        if reason
+          @errors << reason
+        end
         @waiting_futures.delete(future)
       end
     end
