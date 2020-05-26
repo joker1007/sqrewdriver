@@ -3,13 +3,14 @@ require "monitor"
 require "concurrent"
 require "sqrewdriver/errors"
 require "aws-sdk-sqs"
+require "thread"
 
 module Sqrewdriver
   class Client
     MAX_BATCH_SIZE = 10
     MAX_PAYLOAD_SIZE = 256 * 1024
 
-    def initialize(queue_url:, client: nil, threads: 32, serializer: Sqrewdriver.default_serializer, aggregate_messages_per: nil, flush_retry_count: 5, **options)
+    def initialize(queue_url:, client: nil, threads: 32, buffer_size: nil, serializer: Sqrewdriver.default_serializer, aggregate_messages_per: nil, flush_retry_count: 5, **options)
       if client
         @client = client
       else
@@ -17,7 +18,12 @@ module Sqrewdriver
       end
 
       @queue_url = queue_url
-      @message_buffer = Concurrent::Array.new
+      @buffer_size = buffer_size
+      if @buffer_size && @buffer_size > 0
+        @message_buffer = SizedQueue.new(@buffer_size)
+      else
+        @message_buffer = Queue.new
+      end
       @thread_pool = Concurrent::FixedThreadPool.new(threads)
       @flush_retry_count = flush_retry_count
       @waiting_futures = Concurrent::Set.new
@@ -158,11 +164,13 @@ module Sqrewdriver
     def flush_async
       until @message_buffer.empty? do
         if @aggregate_messages_per
-          messages = @message_buffer.shift(@aggregate_messages_per)
-          @sending_buffer.add_aggregated_messages(messages)
+          pop_multi_messages_from_buffer(@aggregate_messages_per) do |messages|
+            @sending_buffer.add_aggregated_messages(messages)
+          end
         else
-          message = @message_buffer.shift
-          @sending_buffer.add_message(message)
+          pop_message_from_buffer do |message|
+            @sending_buffer.add_message(message)
+          end
         end
 
         if @sending_buffer.has_full_chunk?
@@ -194,8 +202,37 @@ module Sqrewdriver
       @message_buffer << message
     end
 
+    def pop_message_from_buffer
+      message = @message_buffer.shift(true)
+      if block_given?
+        yield message
+      end
+      message
+    rescue ThreadError
+      nil
+    end
+
+    def pop_multi_messages_from_buffer(count)
+      messages = []
+      count.times do
+        begin
+          messages << @message_buffer.shift(true)
+        rescue ThreadError
+          break
+        end
+      end
+      if block_given?
+        yield messages
+      end
+      messages
+    end
+
     def need_flush?
-      @message_buffer.length >= (@aggregate_messages_per&.*(10) || 10)
+      if @buffer_size && @message_buffer.length >= @buffer_size
+        return true
+      else
+        @message_buffer.length >= (@aggregate_messages_per&.*(10) || 10)
+      end
     end
 
     def send_first_chunk_async
