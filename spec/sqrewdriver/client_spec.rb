@@ -50,26 +50,25 @@ RSpec.describe Sqrewdriver::Client, aggregate_failures: true do
     end
 
     it "handles errors" do
-      entries = nil
-      sent_count = 0
+      m = Mutex.new
+      entries = []
       sqs.stub_responses(:send_message_batch, -> (ctx) {
-        if sent_count ==  5
-          raise "failed"
+        first = ctx.params[:entries].first
+        sent_entries = ctx.params[:entries].reject { |e| e[:id].to_i == 0 }
+        m.synchronize do
+          entries.concat(sent_entries)
         end
-        entries = ctx.params[:entries]
-        sent_count += 1
-        sqs.stub_data(:send_message_batch)
+        sqs.stub_data(:send_message_batch, failed: [{id: first[:id], message: "failed"}])
       })
       12.times do
         client.send_message_buffered(message_body: {foo: "body"})
       end
-      Concurrent::Promises.zip_futures(*client.instance_variable_get(:@waiting_futures)).wait!
       buffer = client.instance_variable_get(:@message_buffer)
 
+      expect { client.wait_flushing }.to raise_error(Sqrewdriver::SendMessageErrors)
       expect(buffer.size).to eq(2)
       body = JSON.generate({foo: "body"})
       expect(entries).to eq([
-        {message_body: body, id: "0"},
         {message_body: body, id: "1"},
         {message_body: body, id: "2"},
         {message_body: body, id: "3"},
@@ -81,10 +80,12 @@ RSpec.describe Sqrewdriver::Client, aggregate_failures: true do
         {message_body: body, id: "9"},
       ])
 
-      client.flush
+      entries.clear
+
+      expect { client.flush }.to raise_error(Sqrewdriver::SendMessageErrors)
+
       expect(buffer).to be_empty
       expect(entries).to eq([
-        {message_body: body, id: "0"},
         {message_body: body, id: "1"},
       ])
     end
