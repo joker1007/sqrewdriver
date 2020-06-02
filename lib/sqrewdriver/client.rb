@@ -190,6 +190,12 @@ module Sqrewdriver
 
     private
 
+    def self.waiting_cleaner_proc(waiting_list, future)
+      proc { |fulfilled, value, reason|
+        waiting_list.delete(future)
+      }
+    end
+
     def add_message_to_buffer(message)
       @message_buffer << message
     end
@@ -201,9 +207,7 @@ module Sqrewdriver
     def send_first_chunk_async
       future = @sending_buffer.send_first_chunk_async
       @waiting_futures << future
-      future.on_resolution_using(@thread_pool) do |fulfilled, value, reason|
-        @waiting_futures.delete(future)
-      end
+      future.on_resolution_using @thread_pool, &self.class.waiting_cleaner_proc(@waiting_futures, future)
     end
 
     def ensure_serializer_for_aggregation!(serializer)
