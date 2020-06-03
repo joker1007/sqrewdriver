@@ -103,6 +103,17 @@ RSpec.describe Sqrewdriver::Client, aggregate_failures: true do
       }.not_to raise_error
     end
 
+    it "raises error on closed client" do
+      expect {
+        client.send_message_buffered(message_body: {foo: "body"})
+      }.not_to raise_error
+
+      client.close
+      expect {
+        client.send_message_buffered(message_body: {foo: "body"})
+      }.to raise_error Sqrewdriver::ClientClosed
+    end
+    
     context "with buffer_size" do
       let(:client) { Sqrewdriver::Client.new(queue_url: queue_url, client: sqs, buffer_size: 5) }
       it "add message to buffer" do

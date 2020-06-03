@@ -6,6 +6,8 @@ require "aws-sdk-sqs"
 require "thread"
 
 module Sqrewdriver
+  class ClientClosed < StandardError; end
+
   class Client
     MAX_BATCH_SIZE = 10
     MAX_PAYLOAD_SIZE = 256 * 1024
@@ -29,6 +31,7 @@ module Sqrewdriver
       @waiting_futures = Concurrent::Set.new
       @flush_mutex = Mutex.new
       @aggregate_messages_per = aggregate_messages_per
+      @closed = false
 
       ensure_serializer_for_aggregation!(serializer)
 
@@ -41,6 +44,7 @@ module Sqrewdriver
     # else if sum of message size exceeds 256KB,
     # send payload to SQS asynchronously.
     def send_message_buffered(message)
+      check_closed
       add_message_to_buffer(message)
 
       if need_flush?
@@ -196,7 +200,27 @@ module Sqrewdriver
       wait_flushing(timeout)
     end
 
+    def closed?; @closed; end
+
+    def close(timeout = nil)
+      flush(timeout)
+      @thread_pool.shutdown unless @thread_pool.shutdown? || @thread_pool.shuttingdown?
+      @closed = true
+      @thread_pool.wait_for_termination(timeout)
+    end
+
+    def check_closed
+      return unless @closed
+      raise ClientClosed.new("Client already closed")
+    end
+
     private
+
+    def self.waiting_cleaner_proc(waiting_list, future)
+      proc { |fulfilled, value, reason|
+        waiting_list.delete(future)
+      }
+    end
 
     def add_message_to_buffer(message)
       @message_buffer << message
@@ -238,9 +262,7 @@ module Sqrewdriver
     def send_first_chunk_async
       future = @sending_buffer.send_first_chunk_async
       @waiting_futures << future
-      future.on_resolution_using(@thread_pool) do |fulfilled, value, reason|
-        @waiting_futures.delete(future)
-      end
+      future.on_resolution_using @thread_pool, &self.class.waiting_cleaner_proc(@waiting_futures, future)
     end
 
     def ensure_serializer_for_aggregation!(serializer)
