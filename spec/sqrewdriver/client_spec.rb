@@ -8,7 +8,7 @@ RSpec.describe Sqrewdriver::Client, aggregate_failures: true do
       client.send_message_buffered(message_body: {foo: "body"})
       buffer = client.instance_variable_get(:@message_buffer)
 
-      expect(buffer[0]).to eq({message_body: {foo: "body"}})
+      expect(buffer.shift(true)).to eq({message_body: {foo: "body"}})
     end
 
     it "send message to SQS when need_flush (by message count)" do
@@ -49,7 +49,47 @@ RSpec.describe Sqrewdriver::Client, aggregate_failures: true do
       ])
     end
 
-    it "can avoid rase condition on sending buffer (brute force test)" do
+    it "handles errors" do
+      entries = nil
+      sent_count = 0
+      sqs.stub_responses(:send_message_batch, -> (ctx) {
+        if sent_count ==  5
+          raise "failed"
+        end
+        entries = ctx.params[:entries]
+        sent_count += 1
+        sqs.stub_data(:send_message_batch)
+      })
+      12.times do
+        client.send_message_buffered(message_body: {foo: "body"})
+      end
+      Concurrent::Promises.zip_futures(*client.instance_variable_get(:@waiting_futures)).wait!
+      buffer = client.instance_variable_get(:@message_buffer)
+
+      expect(buffer.size).to eq(2)
+      body = JSON.generate({foo: "body"})
+      expect(entries).to eq([
+        {message_body: body, id: "0"},
+        {message_body: body, id: "1"},
+        {message_body: body, id: "2"},
+        {message_body: body, id: "3"},
+        {message_body: body, id: "4"},
+        {message_body: body, id: "5"},
+        {message_body: body, id: "6"},
+        {message_body: body, id: "7"},
+        {message_body: body, id: "8"},
+        {message_body: body, id: "9"},
+      ])
+
+      client.flush
+      expect(buffer).to be_empty
+      expect(entries).to eq([
+        {message_body: body, id: "0"},
+        {message_body: body, id: "1"},
+      ])
+    end
+
+    it "can avoid race condition on sending buffer (brute force test)" do
       num = 0
       expect {
         begin
@@ -73,12 +113,91 @@ RSpec.describe Sqrewdriver::Client, aggregate_failures: true do
         client.send_message_buffered(message_body: {foo: "body"})
       }.to raise_error Sqrewdriver::ClientClosed
     end
+    
+    context "with buffer_size" do
+      let(:client) { Sqrewdriver::Client.new(queue_url: queue_url, client: sqs, buffer_size: 5) }
+      it "add message to buffer" do
+        client.send_message_buffered(message_body: {foo: "body"})
+        buffer = client.instance_variable_get(:@message_buffer)
+
+        expect(buffer.shift(true)).to eq({message_body: {foo: "body"}})
+      end
+
+      it "send message to SQS when need_flush (by message count)" do
+        sqs.stub_responses(:send_message_batch, -> (ctx) {
+          sqs.stub_data(:send_message_batch)
+        })
+        12.times do
+          client.send_message_buffered(message_body: {foo: "body"})
+        end
+        Concurrent::Promises.zip_futures(*client.instance_variable_get(:@waiting_futures)).wait!
+        buffer = client.instance_variable_get(:@message_buffer)
+
+        expect(buffer.size).to eq(2)
+        client.flush
+
+        expect(buffer).to be_empty
+      end
+
+      it "can avoid race condition on sending buffer (brute force test)" do
+        num = 0
+        expect {
+          begin
+            100000.times { |i|
+              num = i
+              client.send_message_buffered(message_body: {foo: "body"})
+            }
+          rescue => e
+            puts "Failed with #{e} at ##{num}th iteration"
+            raise
+          end
+        }.not_to raise_error
+      end
+
+      context "multi thread" do
+        it "can send all messages" do
+          m = Mutex.new
+          entries = []
+          sqs.stub_responses(:send_message_batch, -> (ctx) {
+            m.synchronize do
+              entries.concat(ctx.params[:entries])
+            end
+            sqs.stub_data(:send_message_batch)
+          })
+          pool = Concurrent::FixedThreadPool.new(32)
+          100.times do
+            pool.post do
+              15.times do
+                client.send_message_buffered(message_body: "body")
+              end
+            end
+          end
+
+          5.times do
+            pool.post do
+              client.flush_async
+            end
+          end
+
+          pool.shutdown && pool.wait_for_termination
+          client.flush
+
+          buffer = client.instance_variable_get(:@message_buffer)
+
+          expect(buffer).to be_empty
+          expect(entries.length).to eq(100 * 15)
+        end
+      end
+    end
 
     context "multi thread" do
       it "can send all messages" do
+        m = Mutex.new
         entries = []
         sqs.stub_responses(:send_message_batch, -> (ctx) {
-          entries.concat(ctx.params[:entries])
+          m.synchronize do
+            entries.concat(ctx.params[:entries])
+          end
           sqs.stub_data(:send_message_batch)
         })
         pool = Concurrent::FixedThreadPool.new(32)
