@@ -5,6 +5,8 @@ require "sqrewdriver/errors"
 require "aws-sdk-sqs"
 
 module Sqrewdriver
+  class ClientClosed < StandardError; end
+
   class Client
     MAX_BATCH_SIZE = 10
     MAX_PAYLOAD_SIZE = 256 * 1024
@@ -23,6 +25,7 @@ module Sqrewdriver
       @waiting_futures = Concurrent::Set.new
       @flush_mutex = Mutex.new
       @aggregate_messages_per = aggregate_messages_per
+      @closed = false
 
       ensure_serializer_for_aggregation!(serializer)
 
@@ -35,6 +38,7 @@ module Sqrewdriver
     # else if sum of message size exceeds 256KB,
     # send payload to SQS asynchronously.
     def send_message_buffered(message)
+      check_closed
       add_message_to_buffer(message)
 
       if need_flush?
@@ -186,6 +190,20 @@ module Sqrewdriver
     def flush(timeout = nil)
       flush_async
       wait_flushing(timeout)
+    end
+
+    def closed?; @closed; end
+
+    def close(timeout = nil)
+      flush(timeout)
+      @thread_pool.shutdown unless @thread_pool.shutdown? || @thread_pool.shuttingdown?
+      @closed = true
+      @thread_pool.wait_for_termination(timeout)
+    end
+
+    def check_closed
+      return unless @closed
+      raise ClientClosed.new("Client already closed")
     end
 
     private

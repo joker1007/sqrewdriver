@@ -63,6 +63,17 @@ RSpec.describe Sqrewdriver::Client, aggregate_failures: true do
       }.not_to raise_error
     end
 
+    it "raises error on closed client" do
+      expect {
+        client.send_message_buffered(message_body: {foo: "body"})
+      }.not_to raise_error
+
+      client.close
+      expect {
+        client.send_message_buffered(message_body: {foo: "body"})
+      }.to raise_error Sqrewdriver::ClientClosed
+    end
+
     context "multi thread" do
       it "can send all messages" do
         entries = []
