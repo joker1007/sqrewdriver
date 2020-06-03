@@ -30,6 +30,8 @@ module Sqrewdriver
       @flush_mutex = Mutex.new
       @aggregate_messages_per = aggregate_messages_per
 
+      ObjectSpace.define_finalizer self, self.class.thread_pool_cleaner_proc(@thread_pool)
+
       ensure_serializer_for_aggregation!(serializer)
 
       @sending_buffer = SendingBuffer.new(client: @client, queue_url: queue_url, serializer: serializer, thread_pool: @thread_pool)
@@ -198,6 +200,20 @@ module Sqrewdriver
 
     private
 
+    def self.thread_pool_cleaner_proc(tp)
+      pool = tp.instance_variable_get(:@pool)
+      unless pool
+        warn "[#{self}] WARN: Failed to get worker pool, auto thread pool shutdown will not work. The internal structure of concurrent-ruby may be changed."
+      end
+      proc { pool.each(&:stop) }
+    end
+
+    def self.waiting_cleaner_proc(waiting_list, future)
+      proc { |fulfilled, value, reason|
+        waiting_list.delete(future)
+      }
+    end
+
     def add_message_to_buffer(message)
       @message_buffer << message
     end
@@ -238,9 +254,7 @@ module Sqrewdriver
     def send_first_chunk_async
       future = @sending_buffer.send_first_chunk_async
       @waiting_futures << future
-      future.on_resolution_using(@thread_pool) do |fulfilled, value, reason|
-        @waiting_futures.delete(future)
-      end
+      future.on_resolution_using @thread_pool, &self.class.waiting_cleaner_proc(@waiting_futures, future)
     end
 
     def ensure_serializer_for_aggregation!(serializer)
